@@ -26,9 +26,10 @@ Black to pin 4 or 5V (5V, also counter-intuitive)
 #include <SoftwareSerial.h>
 #include <SPI.h>
 
+#define BUFSIZE 512
 const int RTSpin =  4;
 int incomingByte = 0;
-char buffer[512];	// Overkill
+char buffer[BUFSIZE];	// Overkill
 int counter=0;
 int timer=0;
 
@@ -65,6 +66,13 @@ void loop ()
 	{
 		// Pull 8th bit to zero
 		incomingByte = (mySerial.read() & B01111111);
-		buffer[counter++] = incomingByte;
+		if ( counter < ( BUFSIZE -2 ) ) // Prevent overflow
+		{
+			buffer[counter++] = incomingByte;
+		}
+		else
+		{
+			buffer[counter] = '\0';
+		}
 	}
 }
