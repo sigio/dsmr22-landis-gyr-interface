@@ -1,5 +1,5 @@
 /*
- * DSRM Telegram reader version 0.3
+ * DSRM Telegram reader version 0.4
  * 2018/07/27 -- Mark Janssen -- Sig-I/O Automatisering
  *
  * Public Domain
@@ -36,15 +36,15 @@ Black to pin 4 or 5V (5V, also counter-intuitive)
 #include <SoftwareSerial.h>
 #include <SPI.h>
 #define BUFSIZE 400
-#define VERSION "v0.3"
+#define VERSION "v0.4"
+#define IDLETIME 2500
+#define INTERVAL 10000
 
 const int   RTSpin = 4;             // To tell DSMR meter to send reports
 char        buffer[BUFSIZE];        // Buffer to read received bytes into
-char        received;               // Current received byte
 int         counter = 0;            // Number of Bytes in buffer
-int         lasttime = 0;           // millis() at last printed report
 int         currenttime = 0;        // millis() currently
-int         interval=10000;         // Every X-millis() to print a report
+int         lastread=0;             // time since last succesful read
 
 // Use SoftwareSerial to talk to DSMR, with RX on port 10, TX is un-used by this sketch
 SoftwareSerial DSMR(10,11, true);   // RX (pin 10), TX(pin 11, unused, inverted signals)
@@ -63,8 +63,7 @@ void setup () {
     Serial.println( VERSION );
 
     buffer[counter] = '\0';
-    lasttime=millis();
-    currenttime=millis();
+    lastread = currenttime = millis();
 
     // Ask DSMR to begin reports
     digitalWrite(RTSpin, HIGH);
@@ -72,45 +71,30 @@ void setup () {
 
 void loop ()
 {
-    currenttime = millis();
+  currenttime = millis();
+  if ( currenttime < lastread )
+  {
+     // we looped, just reset last loop time to 0, we might print with a slight delay then
+     // loops only happen every 49+ days
+     lastread = 0;
+  }
 
-    if ( currenttime < lasttime )
-    {
-       // we looped, just reset last loop time to 0, we might print with a slight delay then
-       // loops only happen every 49+ days
-       lasttime = 0;
-    }
- 
-    if ( currenttime > (lasttime+interval-500) )
-    {
-        // We are almost at report-time (1/2 second before)
-        // stop asking for data, so we can handle the last incoming bytes
-        // without getting a new report
-        digitalWrite(RTSpin, LOW);
-    }
-          
-    if ( (  currenttime > (lasttime+interval) ) )
-    {
-        // It's time for a new printed report
-        // Write null byte to end the string
-        buffer[counter++] = '\0';
-        // Print buffer to PC
-        Serial.print(buffer);
-
-        // Reset counters and buffers to clean state
-        counter = 0;
-        buffer[0] = '\0';
-        lasttime=millis();
-
-        // Ask DSMR to send new reports / data
-        digitalWrite(RTSpin, HIGH);
-    }
-
-    // Is there serial data to be read from the DSMR
-    while (DSMR.available() > 0)
-    {
-        // Pull 8th bit to zero
-        received = (DSMR.read() & 0x7F);
-        buffer[counter++] = received;
-    }
+  // If we haven't seen any new characters for interval milliseconds, we must be done,
+  // so print the buffer, as the next one will arrive soon.
+  if ( currenttime > (lastread+IDLETIME) )
+  {
+    buffer[counter++] = '\0';
+    Serial.print(buffer);
+    counter = 0;
+    buffer[counter] = '\0';
+    lastread=millis();
+  }
+  
+  while (DSMR.available() > 0)
+  {
+    // Pull 8th bit to zero, as reports are inverted and 7-bit
+    buffer[counter++] = (DSMR.read() & 0x7F);
+    lastread=millis();
+  }
 }
+
