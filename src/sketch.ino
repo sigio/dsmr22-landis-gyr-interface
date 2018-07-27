@@ -59,7 +59,8 @@ void setup () {
     DSMR.begin(9600);               // Port towards DSMR
 
     delay(50);
-    Serial.print("Arduino Smart-Meter Relay/Translator VERSION\r\n\n" );
+    Serial.print("Arduino Smart-Meter Relay/Translator " );
+    Serial.println( VERSION );
 
     buffer[counter] = '\0';
     lasttime=millis();
